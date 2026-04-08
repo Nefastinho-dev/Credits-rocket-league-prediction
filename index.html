@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>RL Credit Netrunner | Piratage des Prix</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* THÈME CYBERPUNK AMÉLIORÉ */
+        body {
+            background-color: #050505;
+            color: #00ffcc;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        h1 {
+            color: #ff00ff;
+            text-shadow: 0 0 5px #ff00ff, 0 0 15px #ff00ff;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .container {
+            border: 1px solid #00ffcc;
+            box-shadow: 0 0 10px #00ffcc inset, 0 0 15px #00ffcc;
+            padding: 30px;
+            border-radius: 3px;
+            background: rgba(0, 255, 204, 0.02);
+            width: 90%;
+            max-width: 700px;
+            text-align: center;
+        }
+
+        .status {
+            font-size: 12px;
+            color: #ffff00;
+            margin-bottom: 20px;
+            text-align: right;
+        }
+
+        input {
+            background-color: #111;
+            border: 1px solid #00ffcc;
+            color: #00ffcc;
+            padding: 10px;
+            font-size: 16px;
+            width: 150px;
+            text-align: center;
+            outline: none;
+        }
+
+        input:focus {
+            box-shadow: 0 0 10px #00ffcc;
+        }
+
+        button {
+            background-color: #111;
+            border: 1px solid #ff00ff;
+            color: #ff00ff;
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-left: 10px;
+            text-transform: uppercase;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            background-color: #ff00ff;
+            color: #050505;
+            cursor: pointer;
+            box-shadow: 0 0 15px #ff00ff;
+        }
+
+        .result-box {
+            margin-top: 25px;
+            padding: 15px;
+            border: 1px dashed #ff00ff;
+            background: rgba(255, 0, 255, 0.05);
+            display: none;
+            text-align: left;
+        }
+
+        .highlight { color: #fff; font-weight: bold; text-shadow: 0 0 5px #fff; }
+        
+        .chart-container {
+            width: 100%;
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>[ RL_CREDIT_NETRUNNER ]</h1>
+    
+    <div class="container">
+        <div class="status" id="apiStatus">>> CONNEXION AU SERVEUR... EN ATTENTE DES PRIX DU JOUR</div>
+        
+        <p>ENTREZ LE NOMBRE DE CRÉDITS CIBLÉ :</p>
+        <input type="number" id="creditsWanted" placeholder="Ex: 3200" min="100">
+        <button onclick="lancerPiratage()">EXÉCUTER L'ALGORITHME</button>
+
+        <div id="resultat" class="result-box">
+            </div>
+
+        <div class="chart-container">
+            <canvas id="myChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // Variables globales
+        let currentPacks = [];
+        let chartInstance = null;
+
+        // 1. SIMULATION DE L'ACTUALISATION QUOTIDIENNE (API FETCH)
+        async function fetchDailyPrices() {
+            try {
+                document.getElementById('apiStatus').innerText = ">> TÉLÉCHARGEMENT DES PRIX DU JOUR...";
+                
+                // Ici, dans la vraie vie, tu mettrais l'URL de ton API (ex: fetch('https://ton-api.com/prices'))
+                // Pour l'exemple, on simule une réponse de serveur avec les prix actuels (ou en promo)
+                const fauxServeurAPI = [
+                    { name: 'Petit Pack', credits: 500, prix: 4.99 },
+                    { name: 'Moyen Pack', credits: 1100, prix: 9.99 },
+                    { name: 'Grand Pack', credits: 3000, prix: 24.99 },
+                    { name: 'Méga Pack', credits: 6500, prix: 49.99 }
+                ];
+
+                // On simule un temps de chargement réseau (1 seconde)
+                await new Promise(r => setTimeout(r, 1000)); 
+                
+                currentPacks = fauxServeurAPI;
+                document.getElementById('apiStatus').innerText = ">> PRIX ACTUALISÉS AVEC SUCCÈS - " + new Date().toLocaleDateString();
+                document.getElementById('apiStatus').style.color = "#00ffcc";
+                
+                mettreAJourGraphique();
+            } catch (error) {
+                document.getElementById('apiStatus').innerText = ">> ERREUR CONNEXION. UTILISATION DES PRIX HORS-LIGNE.";
+                document.getElementById('apiStatus').style.color = "red";
+            }
+        }
+
+        // 2. L'ALGORITHME DE RENTABILITÉ (Le "Cerveau")
+        function calculerMeilleureCombinaison(cible) {
+            // On trie les packs du plus grand au plus petit pour optimiser le calcul
+            let packs = [...currentPacks].sort((a, b) => b.credits - a.credits);
+            
+            let meilleureSolution = { coutTotal: Infinity, details: [], totalCredits: 0 };
+
+            // Fonction récursive pour tester les combinaisons (Brute-force optimisé)
+            function chercher(index, creditsActuels, coutActuel, choixActuels) {
+                if (creditsActuels >= cible) {
+                    if (coutActuel < meilleureSolution.coutTotal) {
+                        meilleureSolution = { 
+                            coutTotal: coutActuel, 
+                            details: [...choixActuels], 
+                            totalCredits: creditsActuels 
+                        };
+                    }
+                    return;
+                }
+                
+                // Si on dépasse déjà le meilleur coût trouvé, on arrête cette branche (optimisation)
+                if (coutActuel >= meilleureSolution.coutTotal) return;
+
+                for (let i = index; i < packs.length; i++) {
+                    choixActuels.push(packs[i]);
+                    chercher(i, creditsActuels + packs[i].credits, coutActuel + packs[i].prix, choixActuels);
+                    choixActuels.pop(); // Backtracking
+                }
+            }
+
+            chercher(0, 0, 0, []);
+            return meilleureSolution;
+        }
+
+        // 3. AFFICHAGE DES RÉSULTATS
+        function lancerPiratage() {
+            let demande = parseInt(document.getElementById('creditsWanted').value);
+            
+            if (isNaN(demande) || demande <= 0) {
+                alert("Erreur Système: Entrez une valeur valide.");
+                return;
+            }
+
+            let resultatBox = document.getElementById('resultat');
+            resultatBox.style.display = "block";
+            resultatBox.innerHTML = "<em>Calcul des probabilités en cours...</em>";
+
+            // Exécution de l'algorithme
+            let solution = calculerMeilleureCombinaison(demande);
+
+            // Comptage des packs identiques
+            let comptePacks = {};
+            solution.details.forEach(p => {
+                comptePacks[p.credits] = (comptePacks[p.credits] || 0) + 1;
+            });
+
+            // Construction de l'affichage
+            let html = `>> CIBLE : <span class="highlight">${demande} Crédits</span><br><br>`;
+            html += `>> COMBINAISON OPTIMALE :<br>`;
+            
+            for (let [credits, qte]  of Object.entries(comptePacks)) {
+                let prixUnitaire = currentPacks.find(p => p.credits == credits).prix;
+                html += `- ${qte}x Pack ${credits} cr (<span class="highlight">${(qte * prixUnitaire).toFixed(2)}€</span>)<br>`;
+            }
+
+            html += `<br>>> RÉSULTAT FINAL : Vous obtenez <span class="highlight">${solution.totalCredits} Crédits</span> pour <span class="highlight">${solution.coutTotal.toFixed(2)}€</span>.`;
+
+            // Ajout d'une info si c'est plus rentable d'en prendre plus
+            if (solution.totalCredits > demande) {
+                html += `<br><br><em>Note de l'IA : C'est la solution la moins chère, même si elle vous donne ${solution.totalCredits - demande} crédits supplémentaires.</em>`;
+            }
+
+            resultatBox.innerHTML = html;
+        }
+
+        // 4. GRAPHIQUE DES PRIX
+        function mettreAJourGraphique() {
+            const ctx = document.getElementById('myChart').getContext('2d');
+            
+            let labels = currentPacks.map(p => p.credits + ' cr');
+            let dataPrix = currentPacks.map(p => p.prix);
+
+            if (chartInstance) {
+                chartInstance.destroy(); // Détruit l'ancien graphique avant de redessiner
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Coût en Euros (€)',
+                        data: dataPrix,
+                        borderColor: '#00ffcc',
+                        backgroundColor: 'rgba(0, 255, 204, 0.2)',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#ff00ff',
+                        pointRadius: 5,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: { 
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#00ffcc' }
+                        },
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#00ffcc' }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#ff00ff' } }
+                    }
+                }
+            });
+        }
+
+        // Lancement initial au chargement de la page
+        window.onload = fetchDailyPrices;
+    </script>
+</body>
+</html>
